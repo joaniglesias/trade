@@ -99,7 +99,7 @@ function trade_import_issues_form($form, &$form_state) {
 
 function trade_curl_call($filter_id, $startAt) {
   // general URL configuration
-  $username = 'xxx';
+  $username = 'xxxyyy';
   $password = 'xxxx';
   $maxResults = 1;
   $fields = 'status,customfield_14402,customfield_13781,lastViewed,customfield_17300,customfield_27304,timespent,customfield_16000,customfield_13551,customfield_15004,summary,issuetype,components,worklog';
