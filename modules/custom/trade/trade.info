@@ -1,5 +1,0 @@
-name = PM Admin
-description = Bespoke functionalities for PM tasks
-core = 7.x
-
-package = PM

@@ -1,6 +1,6 @@
 <?php
 
-function pm_admin_install() {
+function tr_admin_install() {
 
 
 
@@ -11,6 +11,6 @@ function pm_admin_install() {
 //     UPDATE FUNCTIONS
 // *******************************************************************************************
 
-// function rd_admin_update_7000() {
+// function tr_admin_update_7000() {
 
 // }
