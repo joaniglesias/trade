@@ -40,6 +40,7 @@ dependencies[] = date
 dependencies[] = devel
 dependencies[] = features
 ;dependencies[] = features_extra
+dependencies[] = elysia_cron
 
 
 files[] = trade.profile

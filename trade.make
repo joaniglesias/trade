@@ -59,6 +59,10 @@ projects[views_php][version] = "1.x-dev"
 projects[date][subdir] = "contrib"
 projects[date][version] = "2.6"
 
+projects[elysia_cron][subdir] = "contrib"
+projects[elysia_cron][version] = "2.4"
+
+
 ;Modules for development
 
 projects[devel][subdir] = "develop"

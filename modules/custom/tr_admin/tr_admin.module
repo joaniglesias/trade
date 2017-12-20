@@ -59,7 +59,7 @@ function tr_admin_cron_queue_info() {
 
 function _cron_test($queue_item_params) {
     $time = $queue_item_params;
-
+    $time = time();
     watchdog(
     'Trade Cron',
     "Cron Time 2 !time</pre>",
