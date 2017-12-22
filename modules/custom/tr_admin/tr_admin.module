@@ -75,7 +75,7 @@ https://www.drupal.org/docs/7/setting-up-cron-for-drupal/configuring-cron-jobs-w
 3 - Type in you cron command. For example, to run at EVERY minute of every hour using curl, use:
     "* * * * * /usr/bin/curl --silent --compressed http://localhost:8888/trade/web/trade-drupal/cron.php?cron_key=XYZ"
     Note 1: that if you are not using MAMP's default 8888 port, you should leave that off.
-    Note 2: you can find the cron key here: /admin/config/system/cron/settings
+    Note 2: you can find the cron key "XYZ" here: /admin/config/system/cron/settings
 4 - Press escape key to exit vim's insert mode.
 5 - Type ZZ (Must be capital letters -- saves the file and exits crontab).
 6 - Verify the cron job details by typing crontab -l (that's a lower case L) at the terminal prompt.
