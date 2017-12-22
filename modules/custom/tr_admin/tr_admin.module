@@ -17,13 +17,71 @@ function tr_admin_curl_call($url){
   return json_decode($output);
 }
 
+/**
+ * Create price
+ */
+function tr_admin_create_price($data){
+
+  global $user;
+  $node = new stdClass();
+  $node->type = 'price';
+  $node->title = $data->LastPrice;
+  node_object_prepare($node); // Sets some defaults. Invokes hook_prepare() and hook_node_prepare().
+  $node->language = LANGUAGE_NONE; // Or e.g. 'en' if locale is enabled
+  $node->uid = $user->uid;
+
+  if(!empty($data->DayHighestPrice)) $node->field_day_highest_price['und'][0]['value'] = $data->DayHighestPrice;
+  if(!empty($data->DayLowestPrice)) $node->field_day_lowest_price['und'][0]['value'] = $data->DayLowestPrice;
+  if(!empty($data->DayAvgPrice)) $node->field_day_avg_price['und'][0]['value'] = $data->DayAvgPrice;
+  if(!empty($data->DayVolumeXbt)) $node->field_day_volume_xbt['und'][0]['value'] = $data->DayVolumeXbt;
+  if(!empty($data->LastPrice)) $node->field_last_price['und'][0]['value'] = $data->LastPrice;
+  if(!empty($data->PrimaryCurrencyCode)) $node->field_primary_currency_code['und'][0]['value'] = $data->PrimaryCurrencyCode;
+  if(!empty($data->SecondaryCurrencyCode)) $node->field_secondary_currency_code['und'][0]['value'] = $data->SecondaryCurrencyCode;
+  if(!empty($data->CreatedTimestampUtc)){
+    $time_UTC = str_replace("T"," ",$data->CreatedTimestampUtc);
+    $time_UTC = substr($time_UTC, 0, strpos($time_UTC, "."));
+    $node->field_date_and_time['und'][0]['value'] = $time_UTC;
+  }
+  // if(!empty($data->xxxx)) $node->field_status['und'][0]['value'] = $data->xxxx;
+  // if(!empty($data->xxxx)) $node->field_status['und'][0]['value'] = $data->xxxx;
+  // if(!empty($data->xxxx)) $node->field_status['und'][0]['value'] = $data->xxxx;
+
+
+
+  $node = node_submit($node); // Prepare node for saving
+  node_save($node);
+  return $node;
+
+
+}
+
 
 // /**
 //  * Call to URL (GET)
 //  */
-// function trade_curl_call($url){
+// function tr_admin_curl_call($url){
 //   // $url = "https://api.independentreserve.com/Public/GetMarketSummary?primaryCurrencyCode=xbt&secondaryCurrencyCode=aud";
 // }
+
+
+/*
+HOW TO CONFIGURE CRON TO RUN EVERY MINUTE
+
+MAMP:
+https://www.drupal.org/docs/7/setting-up-cron-for-drupal/configuring-cron-jobs-with-mamp-localhost
+
+1 - In Terminal type "crontab -e". This allows you to add a cron job, using the vim editor.
+2 - Press i on your keyboard to go into vim's insert mode.
+3 - Type in you cron command. For example, to run at EVERY minute of every hour using curl, use:
+    "* * * * * /usr/bin/curl --silent --compressed http://localhost:8888/trade/web/trade-drupal/cron.php"
+    Note that if you are not using MAMP's default 8888 port, you should leave that off.
+4 - Press escape key to exit vim's insert mode.
+5 - Type ZZ (Must be capital letters -- saves the file and exits crontab).
+6 - Verify the cron job details by typing crontab -l (that's a lower case L) at the terminal prompt.
+
+OTHER: (CPANEL)
+https://www.drupal.org/docs/7/setting-up-cron-for-drupal/configuring-cron-jobs-with-cpanel
+*/
 
 
 /**
@@ -31,7 +89,8 @@ function tr_admin_curl_call($url){
  */
 function tr_admin_cron() {
     $time = time();
-    $queue_item_params = $time;
+    $url = "https://api.independentreserve.com/Public/GetMarketSummary?primaryCurrencyCode=xbt&secondaryCurrencyCode=aud";
+    $queue_item_params = $url;
     $queue = DrupalQueue::get('trade_cron_test');
     $queue->createItem($queue_item_params);
     watchdog(
@@ -58,13 +117,14 @@ function tr_admin_cron_queue_info() {
 
 
 function _cron_test($queue_item_params) {
-    $time = $queue_item_params;
-    $time = time();
+    $url = $queue_item_params;
+    $data = tr_admin_curl_call($url);
+    $new_price = tr_admin_create_price($data);
     watchdog(
     'Trade Cron',
-    "Cron Time 2 !time</pre>",
+    "Price created !price</pre>",
     array(
-      '!time' =>  print_r($time, TRUE),
+      '!price' =>  print_r($new_price, TRUE),
       ),
     WATCHDOG_NOTICE
     );
