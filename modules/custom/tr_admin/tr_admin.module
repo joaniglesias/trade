@@ -18,7 +18,7 @@ function tr_admin_curl_call($url){
 }
 
 /**
- * Create price - testing
+ * Create price
  */
 function tr_admin_create_price($data){
 
