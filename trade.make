@@ -63,7 +63,7 @@ projects[elysia_cron][subdir] = "contrib"
 projects[elysia_cron][version] = "2.4"
 
 projects[charts][subdir] = "contrib"
-projects[charts][version] = "2.0"
+projects[charts][version] = "2.0-rc1"
 
 
 ;Modules for development

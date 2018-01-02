@@ -42,6 +42,13 @@ function tr_admin_create_price($data){
     $time_UTC = substr($time_UTC, 0, strpos($time_UTC, "."));
     $node->field_date_and_time['und'][0]['value'] = $time_UTC;
   }
+  // internal calculus
+  $number_of_nodes = 4;
+  $last_price = $data->LastPrice;
+  $last_prices = tr_admin_get_last_prices($number_of_nodes);
+  $node->field_average_price_5min['und'][0]['value'] = (array_sum($last_prices)+$last_price)/5;
+  $node->field_difference_2min_price['und'][0]['value'] = $last_price - $last_prices[0];
+  $node->field_difference_2min_percentatg['und'][0]['value'] = (($last_price - $last_prices[0])*100)/$last_prices[0];
   // if(!empty($data->xxxx)) $node->field_status['und'][0]['value'] = $data->xxxx;
   // if(!empty($data->xxxx)) $node->field_status['und'][0]['value'] = $data->xxxx;
   // if(!empty($data->xxxx)) $node->field_status['und'][0]['value'] = $data->xxxx;
@@ -54,6 +61,31 @@ function tr_admin_create_price($data){
 
 
 }
+
+/**
+ * Create price
+ */
+function tr_admin_get_last_prices($number_of_nodes, $node_type = 'price', $primary_currency = 'xbt'){
+
+
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', 'node')
+  ->propertyCondition('type', $node_type)
+  ->propertyOrderBy('nid', 'DESC')
+  ->addTag('DANGEROUS_ACCESS_CHECK_OPT_OUT')
+  ->range(0,$number_of_nodes);
+  $result = $query->execute();
+
+  $last_prices = array();
+  foreach ($result['node'] as $node) {
+    $item_node = node_load($node->nid);
+    $last_prices[] = $item_node->field_last_price['und'][0]['value'];
+  }
+
+  return $last_prices;
+
+}
+
 
 
 // /**
@@ -121,9 +153,9 @@ function _cron_test($queue_item_params) {
     $data = tr_admin_curl_call($url);
     $new_price = tr_admin_create_price($data);
     watchdog(
-    'Trade Cron',
     "Price created !price</pre>",
     array(
+    'Trade Cron',
       '!price' =>  print_r($new_price, TRUE),
       ),
     WATCHDOG_NOTICE
