@@ -25,7 +25,6 @@ function tr_admin_create_price($data){
   global $user;
   $node = new stdClass();
   $node->type = 'price';
-  $node->title = $data->LastPrice;
   node_object_prepare($node); // Sets some defaults. Invokes hook_prepare() and hook_node_prepare().
   $node->language = LANGUAGE_NONE; // Or e.g. 'en' if locale is enabled
   $node->uid = $user->uid;
@@ -41,6 +40,10 @@ function tr_admin_create_price($data){
     $time_UTC = str_replace("T"," ",$data->CreatedTimestampUtc);
     $time_UTC = substr($time_UTC, 0, strpos($time_UTC, "."));
     $node->field_date_and_time['und'][0]['value'] = $time_UTC;
+    $node->title = $time_UTC;
+  }
+  else {
+    $node->title = $data->LastPrice;
   }
   // internal calculus
   $number_of_nodes = 4;
@@ -63,7 +66,7 @@ function tr_admin_create_price($data){
 }
 
 /**
- * Create price
+ * Get list of last prices
  */
 function tr_admin_get_last_prices($number_of_nodes, $node_type = 'price', $primary_currency = 'xbt'){
 
@@ -87,6 +90,79 @@ function tr_admin_get_last_prices($number_of_nodes, $node_type = 'price', $prima
 }
 
 
+
+
+/**
+ * Create Summary hourly prices Independent Reserve
+ */
+function tr_admin_create_summary_price_hour_IR($data){
+
+  $last_hour_data = end($data->HistorySummaryItems);
+
+  global $user;
+  $node = new stdClass();
+  $node->type = 'price_summary';
+  node_object_prepare($node); // Sets some defaults. Invokes hook_prepare() and hook_node_prepare().
+  $node->language = LANGUAGE_NONE; // Or e.g. 'en' if locale is enabled
+  $node->uid = $user->uid;
+
+
+  $node->field_summary_type['und'][0]['value'] = 'hour_IR';
+  if(!empty($last_hour_data->StartTimestampUtc)) {
+    $time_UTC = str_replace("T"," ",$last_hour_data->StartTimestampUtc);
+    $time_UTC = substr($time_UTC, 0, strpos($time_UTC, "."));
+    $node->field_start_date_and_time['und'][0]['value'] = $time_UTC;
+    $node->title = $time_UTC;
+  }
+  else {
+    $node->title = $data->LastPrice;
+  }
+  if(!empty($last_hour_data->EndTimestampUtc)){
+    $time_UTC = str_replace("T"," ",$last_hour_data->EndTimestampUtc);
+    $time_UTC = substr($time_UTC, 0, strpos($time_UTC, "."));
+    $node->field_end_date_and_time['und'][0]['value'] = $time_UTC;
+  }
+  if(!empty($last_hour_data->AverageSecondaryCurrencyPrice)) $node->field_price['und'][0]['value'] = $last_hour_data->AverageSecondaryCurrencyPrice;
+  if(!empty($last_hour_data->OpeningSecondaryCurrencyPrice)) $node->field_open_price['und'][0]['value'] = $last_hour_data->OpeningSecondaryCurrencyPrice;
+  if(!empty($last_hour_data->ClosingSecondaryCurrencyPrice)) $node->field_close_price['und'][0]['value'] = $last_hour_data->ClosingSecondaryCurrencyPrice;
+  if(!empty($last_hour_data->HighestSecondaryCurrencyPrice)) $node->field_high_price['und'][0]['value'] = $last_hour_data->HighestSecondaryCurrencyPrice;
+  if(!empty($last_hour_data->LowestSecondaryCurrencyPrice)) $node->field_low_price['und'][0]['value'] = $last_hour_data->LowestSecondaryCurrencyPrice;
+  if(!empty($last_hour_data->PrimaryCurrencyVolume)) $node->field_daily_volume['und'][0]['value'] = $last_hour_data->PrimaryCurrencyVolume;
+  if(!empty($last_hour_data->NumberOfTrades)) $node->field_daily_trades['und'][0]['value'] = $last_hour_data->NumberOfTrades;
+  if(!empty($data->PrimaryCurrencyCode)) $node->field_primary_currency_code['und'][0]['value'] = $data->PrimaryCurrencyCode;
+  if(!empty($data->SecondaryCurrencyCode)) $node->field_secondary_currency_code['und'][0]['value'] = $data->SecondaryCurrencyCode;
+
+
+
+  // global $user;
+  // $node = new stdClass();
+  // $node->type = 'price_summary';
+  // node_object_prepare($node); // Sets some defaults. Invokes hook_prepare() and hook_node_prepare().
+  // $node->language = LANGUAGE_NONE; // Or e.g. 'en' if locale is enabled
+  // $node->uid = $user->uid;
+
+
+  // if(!empty($data->xxxx)) $node->field_summary_type['und'][0]['value'] = $data->xxxx;
+  // if(!empty($data->xxxx)) $node->field_start_date_and_time['und'][0]['value'] = $data->xxxx;
+  // if(!empty($data->xxxx)) $node->field_end_date_and_time['und'][0]['value'] = $data->xxxx;
+  // if(!empty($data->xxxx)) $node->field_price['und'][0]['value'] = $data->xxxx;
+  // if(!empty($data->xxxx)) $node->field_open_price['und'][0]['value'] = $data->xxxx;
+  // if(!empty($data->xxxx)) $node->field_close_price['und'][0]['value'] = $data->xxxx;
+  // if(!empty($data->xxxx)) $node->field_high_price['und'][0]['value'] = $data->xxxx;
+  // if(!empty($data->xxxx)) $node->field_low_price['und'][0]['value'] = $data->xxxx;
+  // if(!empty($data->xxxx)) $node->field_daily_weight_average['und'][0]['value'] = $data->xxxx;
+  // if(!empty($data->xxxx)) $node->field_daily_volume['und'][0]['value'] = $data->xxxx;
+  // if(!empty($data->xxxx)) $node->field_daily_trades['und'][0]['value'] = $data->xxxx;
+  // if(!empty($data->xxxx)) $node->field_primary_currency_code['und'][0]['value'] = $data->xxxx;
+  // if(!empty($data->xxxx)) $node->field_secondary_currency_code['und'][0]['value'] = $data->xxxx;
+
+
+  $node = node_submit($node); // Prepare node for saving
+  node_save($node);
+  return $node;
+
+
+}
 
 // /**
 //  * Call to URL (GET)
@@ -116,18 +192,73 @@ OTHER: (CPANEL)
 https://www.drupal.org/docs/7/setting-up-cron-for-drupal/configuring-cron-jobs-with-cpanel
 */
 
+/**
+ * Implements hook_cronapi() - elysia_cron module API
+ */
+function tr_admin_cronapi($op, $job = NULL) {
+
+  $items['tr_admin_create_price_cron'] = array(
+    'description' => 'Create Price - Every minute - Independent Reserve Data',
+    'rule' => '* * * * *', // Every minute
+    'weight' => 0,
+  );
+
+  $items['tr_admin_create_hourly_ir_summary'] = array(
+    'description' => 'Create Price Summary - Every Hour - Independent Reserve Data',
+    'rule' => '5 * * * *', // Every hour at xx.05 minutes (five past minutes)
+    'weight' => 1,
+    // i must call: example_news_fetch('all') - more info: http://cgit.drupalcode.org/elysia_cron/tree/API.txt
+    // 'callback' => 'example_news_fetch',
+    // 'arguments' => array('all'),
+  );
+
+  $items['tr_admin_create_hourly_drupal_summary'] = array(
+    'description' => 'Create Price Summary - Every Hour - Drupal data',
+    'rule' => '5 * * * *', // Every hour at xx.05 minutes (five past minutes)
+    'weight' => 2,
+  );
+
+  $items['tr_admin_create_daily_drupal_summary'] = array(
+    'description' => 'Create Price Summary - Every Day - Drupal data',
+    'rule' => '15 1 * * *', // Every day at 01.15 AM
+    'weight' => 3,
+  );
+
+  return $items;
+}
 
 /**
- * Implements hook_cron().
+ * Callback for tr_admin_cronapi
  */
-function tr_admin_cron() {
-    $time = time();
+function tr_admin_create_price_cron(){
     $url = "https://api.independentreserve.com/Public/GetMarketSummary?primaryCurrencyCode=xbt&secondaryCurrencyCode=aud";
-    $queue_item_params = $url;
-    $queue = DrupalQueue::get('trade_cron_test');
-    $queue->createItem($queue_item_params);
+    $data = tr_admin_curl_call($url);
+    $new_price = tr_admin_create_price($data);
+
+
+    $time = time();
     watchdog(
-    'Trade Cron',
+    'Cron: Minute Price',
+    "Cron Time 1 !time</pre>",
+    array(
+      '!time' =>  print_r($time, TRUE),
+      ),
+    WATCHDOG_NOTICE
+    );
+}
+
+/**
+ * Callback for tr_admin_cronapi
+ */
+function tr_admin_create_hourly_ir_summary(){
+    $url = "https://api.independentreserve.com/Public/GetTradeHistorySummary?primaryCurrencyCode=xbt&secondaryCurrencyCode=aud&numberOfHoursInThePastToRetrieve=1";
+    $data = tr_admin_curl_call($url);
+    $new_summary_price = tr_admin_create_summary_price_hour_IR($data);
+
+
+    $time = time();
+    watchdog(
+    'Cron: Hour IR Price',
     "Cron Time 1 !time</pre>",
     array(
       '!time' =>  print_r($time, TRUE),
@@ -138,30 +269,94 @@ function tr_admin_cron() {
 }
 
 /**
- * Implements hook_cron_queue_info().
+ * Callback for tr_admin_cronapi
  */
-function tr_admin_cron_queue_info() {
-  $queues['trade_cron_test'] = array(
-    'worker callback' => '_cron_test',
-    'time' => 60,
-  );
-  return $queues;
-}
-
-
-function _cron_test($queue_item_params) {
-    $url = $queue_item_params;
-    $data = tr_admin_curl_call($url);
-    $new_price = tr_admin_create_price($data);
+function tr_admin_create_hourly_drupal_summary(){
+    $time = time();
     watchdog(
-    "Price created !price</pre>",
+    'Cron: Hour Drupal Price Summary',
+    "Cron Time 1 !time</pre>",
     array(
-    'Trade Cron',
-      '!price' =>  print_r($new_price, TRUE),
+      '!time' =>  print_r($time, TRUE),
       ),
     WATCHDOG_NOTICE
     );
+
 }
+
+/**
+ * Callback for tr_admin_cronapi
+ */
+function tr_admin_create_daily_drupal_summary(){
+    $time = time();
+    watchdog(
+    'Cron: Daily Drupal Price Summary',
+    "Cron Time 1 !time</pre>",
+    array(
+      '!time' =>  print_r($time, TRUE),
+      ),
+    WATCHDOG_NOTICE
+    );
+
+}
+
+
+// /*****   OLD: DRUPAL CORE CRON ****/
+
+// /**
+//  * Implements hook_cron().
+//  */
+// function tr_admin_cron() {
+//     $time = time();
+//     $url = "https://api.independentreserve.com/Public/GetMarketSummary?primaryCurrencyCode=xbt&secondaryCurrencyCode=aud";
+//     $queue_item_params = $url;
+//     $queue = DrupalQueue::get('trade_cron_test');
+//     $queue->createItem($queue_item_params);
+//     watchdog(
+//     'Trade Cron',
+//     "Cron Time 1 !time</pre>",
+//     array(
+//       '!time' =>  print_r($time, TRUE),
+//       ),
+//     WATCHDOG_NOTICE
+//     );
+
+// }
+
+// *
+//  * Implements hook_cron_queue_info().
+
+// function tr_admin_cron_queue_info() {
+//   $queues['trade_cron_test'] = array(
+//     'worker callback' => '_cron_test',
+//     'time' => 60,
+//   );
+//   return $queues;
+// }
+
+
+// function _cron_test($queue_item_params) {
+//     $url = $queue_item_params;
+//     $data = tr_admin_curl_call($url);
+//     $new_price = tr_admin_create_price($data);
+//     watchdog(
+//     'Trade Cron - Price',
+//     "Price created !price</pre>",
+//     array(
+//       '!price' =>  print_r($new_price, TRUE),
+//       ),
+//     WATCHDOG_NOTICE
+//     );
+// }
+
+
+
+
+
+
+
+
+
 
 
 // /**
