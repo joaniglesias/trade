@@ -22,45 +22,52 @@ function tr_admin_curl_call($url){
  */
 function tr_admin_create_price($data){
 
-  global $user;
-  $node = new stdClass();
-  $node->type = 'price';
-  node_object_prepare($node); // Sets some defaults. Invokes hook_prepare() and hook_node_prepare().
-  $node->language = LANGUAGE_NONE; // Or e.g. 'en' if locale is enabled
-  $node->uid = $user->uid;
+    global $user;
+    $node = new stdClass();
+    $node->type = 'price';
+    node_object_prepare($node); // Sets some defaults. Invokes hook_prepare() and hook_node_prepare().
+    $node->language = LANGUAGE_NONE; // Or e.g. 'en' if locale is enabled
+    $node->uid = $user->uid;
 
-  if(!empty($data->DayHighestPrice)) $node->field_day_highest_price['und'][0]['value'] = $data->DayHighestPrice;
-  if(!empty($data->DayLowestPrice)) $node->field_day_lowest_price['und'][0]['value'] = $data->DayLowestPrice;
-  if(!empty($data->DayAvgPrice)) $node->field_day_avg_price['und'][0]['value'] = $data->DayAvgPrice;
-  if(!empty($data->DayVolumeXbt)) $node->field_day_volume_xbt['und'][0]['value'] = $data->DayVolumeXbt;
-  if(!empty($data->LastPrice)) $node->field_last_price['und'][0]['value'] = $data->LastPrice;
-  if(!empty($data->PrimaryCurrencyCode)) $node->field_primary_currency_code['und'][0]['value'] = $data->PrimaryCurrencyCode;
-  if(!empty($data->SecondaryCurrencyCode)) $node->field_secondary_currency_code['und'][0]['value'] = $data->SecondaryCurrencyCode;
-  if(!empty($data->CreatedTimestampUtc)){
-    $time_UTC = str_replace("T"," ",$data->CreatedTimestampUtc);
-    $time_UTC = substr($time_UTC, 0, strpos($time_UTC, "."));
-    $node->field_date_and_time['und'][0]['value'] = $time_UTC;
-    $node->title = $time_UTC;
+  // Data has been received
+  if(!empty($data->LastPrice)) {
+
+    if(!empty($data->DayHighestPrice)) $node->field_day_highest_price['und'][0]['value'] = $data->DayHighestPrice;
+    if(!empty($data->DayLowestPrice)) $node->field_day_lowest_price['und'][0]['value'] = $data->DayLowestPrice;
+    if(!empty($data->DayAvgPrice)) $node->field_day_avg_price['und'][0]['value'] = $data->DayAvgPrice;
+    if(!empty($data->DayVolumeXbt)) $node->field_day_volume_xbt['und'][0]['value'] = $data->DayVolumeXbt;
+    if(!empty($data->LastPrice)) $node->field_last_price['und'][0]['value'] = $data->LastPrice;
+    if(!empty($data->PrimaryCurrencyCode)) $node->field_primary_currency_code['und'][0]['value'] = $data->PrimaryCurrencyCode;
+    if(!empty($data->SecondaryCurrencyCode)) $node->field_secondary_currency_code['und'][0]['value'] = $data->SecondaryCurrencyCode;
+    if(!empty($data->CreatedTimestampUtc)){
+      $time_UTC = str_replace("T"," ",$data->CreatedTimestampUtc);
+      $time_UTC = substr($time_UTC, 0, strpos($time_UTC, "."));
+      $node->field_date_and_time['und'][0]['value'] = $time_UTC;
+      $node->title = $time_UTC;
+    }
+    else {
+      $node->title = $data->LastPrice;
+    }
+    // internal calculus
+    $number_of_nodes = 4;
+    $last_price = $data->LastPrice;
+    $last_prices = tr_admin_get_last_prices($number_of_nodes);
+    $node->field_average_price_5min['und'][0]['value'] = (array_sum($last_prices)+$last_price)/5;
+    $node->field_difference_2min_price['und'][0]['value'] = $last_price - $last_prices[0];
+    $node->field_difference_2min_percentatg['und'][0]['value'] = (($last_price - $last_prices[0])*100)/$last_prices[0];
+    // if(!empty($data->xxxx)) $node->field_status['und'][0]['value'] = $data->xxxx;
+    // if(!empty($data->xxxx)) $node->field_status['und'][0]['value'] = $data->xxxx;
+    // if(!empty($data->xxxx)) $node->field_status['und'][0]['value'] = $data->xxxx;
   }
+  // No data received
   else {
-    $node->title = $data->LastPrice;
+    $node->title = 'error';
   }
-  // internal calculus
-  $number_of_nodes = 4;
-  $last_price = $data->LastPrice;
-  $last_prices = tr_admin_get_last_prices($number_of_nodes);
-  $node->field_average_price_5min['und'][0]['value'] = (array_sum($last_prices)+$last_price)/5;
-  $node->field_difference_2min_price['und'][0]['value'] = $last_price - $last_prices[0];
-  $node->field_difference_2min_percentatg['und'][0]['value'] = (($last_price - $last_prices[0])*100)/$last_prices[0];
-  // if(!empty($data->xxxx)) $node->field_status['und'][0]['value'] = $data->xxxx;
-  // if(!empty($data->xxxx)) $node->field_status['und'][0]['value'] = $data->xxxx;
-  // if(!empty($data->xxxx)) $node->field_status['und'][0]['value'] = $data->xxxx;
 
 
-
-  $node = node_submit($node); // Prepare node for saving
-  node_save($node);
-  return $node;
+    $node = node_submit($node); // Prepare node for saving
+    node_save($node);
+    return $node;
 
 
 }
@@ -74,6 +81,7 @@ function tr_admin_get_last_prices($number_of_nodes, $node_type = 'price', $prima
   $query = new EntityFieldQuery();
   $query->entityCondition('entity_type', 'node')
   ->propertyCondition('type', $node_type)
+  ->propertyCondition('title', 'error', '!=')
   ->propertyOrderBy('nid', 'DESC')
   ->addTag('DANGEROUS_ACCESS_CHECK_OPT_OUT')
   ->range(0,$number_of_nodes);
@@ -82,7 +90,12 @@ function tr_admin_get_last_prices($number_of_nodes, $node_type = 'price', $prima
   $last_prices = array();
   foreach ($result['node'] as $node) {
     $item_node = node_load($node->nid);
-    $last_prices[] = $item_node->field_last_price['und'][0]['value'];
+    if(!empty($item_node->field_last_price['und'][0]['value'])) {
+      $last_prices[] = $item_node->field_last_price['und'][0]['value'];
+    }
+    else {
+      $last_prices[] = 1;
+    }
   }
 
   return $last_prices;
@@ -97,70 +110,81 @@ function tr_admin_get_last_prices($number_of_nodes, $node_type = 'price', $prima
  */
 function tr_admin_create_summary_price_hour_IR($data){
 
-  $last_hour_data = end($data->HistorySummaryItems);
+  // Data received
+  if(!empty($data->HistorySummaryItems)) {
 
-  global $user;
-  $node = new stdClass();
-  $node->type = 'price_summary';
-  node_object_prepare($node); // Sets some defaults. Invokes hook_prepare() and hook_node_prepare().
-  $node->language = LANGUAGE_NONE; // Or e.g. 'en' if locale is enabled
-  $node->uid = $user->uid;
+    global $user;
+    $node = new stdClass();
+    $node->type = 'price_summary';
+    node_object_prepare($node); // Sets some defaults. Invokes hook_prepare() and hook_node_prepare().
+    $node->language = LANGUAGE_NONE; // Or e.g. 'en' if locale is enabled
+    $node->uid = $user->uid;
+
+    $last_hour_data = end($data->HistorySummaryItems);
+
+    // Data (Last hourly Price) has been received
+    if(!empty($last_hour_data->AverageSecondaryCurrencyPrice)) {
+
+      $node->field_summary_type['und'][0]['value'] = 'hour_IR';
+      if(!empty($last_hour_data->StartTimestampUtc)) {
+        $time_UTC = str_replace("T"," ",$last_hour_data->StartTimestampUtc);
+        $time_UTC = substr_replace($time_UTC, "", -1);
+        $node->field_start_date_and_time['und'][0]['value'] = $time_UTC;
+        $node->field_start_date_and_time_utc_ti['und'][0]['value']= strtotime($time_UTC);
+        $node->title = $time_UTC;
+      }
+      else {
+        $node->title = $data->LastPrice;
+      }
+      if(!empty($last_hour_data->EndTimestampUtc)){
+        $time_UTC = str_replace("T"," ",$last_hour_data->EndTimestampUtc);
+        $time_UTC = substr_replace($time_UTC, "", -1);
+        $node->field_end_date_and_time['und'][0]['value'] = $time_UTC;
+      }
+      if(!empty($last_hour_data->AverageSecondaryCurrencyPrice)) $node->field_price['und'][0]['value'] = $last_hour_data->AverageSecondaryCurrencyPrice;
+      if(!empty($last_hour_data->OpeningSecondaryCurrencyPrice)) $node->field_open_price['und'][0]['value'] = $last_hour_data->OpeningSecondaryCurrencyPrice;
+      if(!empty($last_hour_data->ClosingSecondaryCurrencyPrice)) $node->field_close_price['und'][0]['value'] = $last_hour_data->ClosingSecondaryCurrencyPrice;
+      if(!empty($last_hour_data->HighestSecondaryCurrencyPrice)) $node->field_high_price['und'][0]['value'] = $last_hour_data->HighestSecondaryCurrencyPrice;
+      if(!empty($last_hour_data->LowestSecondaryCurrencyPrice)) $node->field_low_price['und'][0]['value'] = $last_hour_data->LowestSecondaryCurrencyPrice;
+      if(!empty($last_hour_data->PrimaryCurrencyVolume)) $node->field_daily_volume['und'][0]['value'] = $last_hour_data->PrimaryCurrencyVolume;
+      if(!empty($last_hour_data->NumberOfTrades)) $node->field_daily_trades['und'][0]['value'] = $last_hour_data->NumberOfTrades;
+      if(!empty($data->PrimaryCurrencyCode)) $node->field_primary_currency_code['und'][0]['value'] = $data->PrimaryCurrencyCode;
+      if(!empty($data->SecondaryCurrencyCode)) $node->field_secondary_currency_code['und'][0]['value'] = $data->SecondaryCurrencyCode;
 
 
-  $node->field_summary_type['und'][0]['value'] = 'hour_IR';
-  if(!empty($last_hour_data->StartTimestampUtc)) {
-    $time_UTC = str_replace("T"," ",$last_hour_data->StartTimestampUtc);
-    $time_UTC = substr_replace($time_UTC, "", -1);
-    $node->field_start_date_and_time['und'][0]['value'] = $time_UTC;
-    $node->title = $time_UTC;
+
+      // global $user;
+      // $node = new stdClass();
+      // $node->type = 'price_summary';
+      // node_object_prepare($node); // Sets some defaults. Invokes hook_prepare() and hook_node_prepare().
+      // $node->language = LANGUAGE_NONE; // Or e.g. 'en' if locale is enabled
+      // $node->uid = $user->uid;
+
+
+      // if(!empty($data->xxxx)) $node->field_summary_type['und'][0]['value'] = $data->xxxx;
+      // if(!empty($data->xxxx)) $node->field_start_date_and_time['und'][0]['value'] = $data->xxxx;
+      // if(!empty($data->xxxx)) $node->field_end_date_and_time['und'][0]['value'] = $data->xxxx;
+      // if(!empty($data->xxxx)) $node->field_price['und'][0]['value'] = $data->xxxx;
+      // if(!empty($data->xxxx)) $node->field_open_price['und'][0]['value'] = $data->xxxx;
+      // if(!empty($data->xxxx)) $node->field_close_price['und'][0]['value'] = $data->xxxx;
+      // if(!empty($data->xxxx)) $node->field_high_price['und'][0]['value'] = $data->xxxx;
+      // if(!empty($data->xxxx)) $node->field_low_price['und'][0]['value'] = $data->xxxx;
+      // if(!empty($data->xxxx)) $node->field_daily_weight_average['und'][0]['value'] = $data->xxxx;
+      // if(!empty($data->xxxx)) $node->field_daily_volume['und'][0]['value'] = $data->xxxx;
+      // if(!empty($data->xxxx)) $node->field_daily_trades['und'][0]['value'] = $data->xxxx;
+      // if(!empty($data->xxxx)) $node->field_primary_currency_code['und'][0]['value'] = $data->xxxx;
+      // if(!empty($data->xxxx)) $node->field_secondary_currency_code['und'][0]['value'] = $data->xxxx;
+
+    }
+    // No data received
+    else {
+      $node->title = 'error';
+    }
+
+    $node = node_submit($node); // Prepare node for saving
+    node_save($node);
+    return $node;
   }
-  else {
-    $node->title = $data->LastPrice;
-  }
-  if(!empty($last_hour_data->EndTimestampUtc)){
-    $time_UTC = str_replace("T"," ",$last_hour_data->EndTimestampUtc);
-    $time_UTC = substr_replace($time_UTC, "", -1);
-    $node->field_end_date_and_time['und'][0]['value'] = $time_UTC;
-  }
-  if(!empty($last_hour_data->AverageSecondaryCurrencyPrice)) $node->field_price['und'][0]['value'] = $last_hour_data->AverageSecondaryCurrencyPrice;
-  if(!empty($last_hour_data->OpeningSecondaryCurrencyPrice)) $node->field_open_price['und'][0]['value'] = $last_hour_data->OpeningSecondaryCurrencyPrice;
-  if(!empty($last_hour_data->ClosingSecondaryCurrencyPrice)) $node->field_close_price['und'][0]['value'] = $last_hour_data->ClosingSecondaryCurrencyPrice;
-  if(!empty($last_hour_data->HighestSecondaryCurrencyPrice)) $node->field_high_price['und'][0]['value'] = $last_hour_data->HighestSecondaryCurrencyPrice;
-  if(!empty($last_hour_data->LowestSecondaryCurrencyPrice)) $node->field_low_price['und'][0]['value'] = $last_hour_data->LowestSecondaryCurrencyPrice;
-  if(!empty($last_hour_data->PrimaryCurrencyVolume)) $node->field_daily_volume['und'][0]['value'] = $last_hour_data->PrimaryCurrencyVolume;
-  if(!empty($last_hour_data->NumberOfTrades)) $node->field_daily_trades['und'][0]['value'] = $last_hour_data->NumberOfTrades;
-  if(!empty($data->PrimaryCurrencyCode)) $node->field_primary_currency_code['und'][0]['value'] = $data->PrimaryCurrencyCode;
-  if(!empty($data->SecondaryCurrencyCode)) $node->field_secondary_currency_code['und'][0]['value'] = $data->SecondaryCurrencyCode;
-
-
-
-  // global $user;
-  // $node = new stdClass();
-  // $node->type = 'price_summary';
-  // node_object_prepare($node); // Sets some defaults. Invokes hook_prepare() and hook_node_prepare().
-  // $node->language = LANGUAGE_NONE; // Or e.g. 'en' if locale is enabled
-  // $node->uid = $user->uid;
-
-
-  // if(!empty($data->xxxx)) $node->field_summary_type['und'][0]['value'] = $data->xxxx;
-  // if(!empty($data->xxxx)) $node->field_start_date_and_time['und'][0]['value'] = $data->xxxx;
-  // if(!empty($data->xxxx)) $node->field_end_date_and_time['und'][0]['value'] = $data->xxxx;
-  // if(!empty($data->xxxx)) $node->field_price['und'][0]['value'] = $data->xxxx;
-  // if(!empty($data->xxxx)) $node->field_open_price['und'][0]['value'] = $data->xxxx;
-  // if(!empty($data->xxxx)) $node->field_close_price['und'][0]['value'] = $data->xxxx;
-  // if(!empty($data->xxxx)) $node->field_high_price['und'][0]['value'] = $data->xxxx;
-  // if(!empty($data->xxxx)) $node->field_low_price['und'][0]['value'] = $data->xxxx;
-  // if(!empty($data->xxxx)) $node->field_daily_weight_average['und'][0]['value'] = $data->xxxx;
-  // if(!empty($data->xxxx)) $node->field_daily_volume['und'][0]['value'] = $data->xxxx;
-  // if(!empty($data->xxxx)) $node->field_daily_trades['und'][0]['value'] = $data->xxxx;
-  // if(!empty($data->xxxx)) $node->field_primary_currency_code['und'][0]['value'] = $data->xxxx;
-  // if(!empty($data->xxxx)) $node->field_secondary_currency_code['und'][0]['value'] = $data->xxxx;
-
-
-  $node = node_submit($node); // Prepare node for saving
-  node_save($node);
-  return $node;
-
 
 }
 
