@@ -262,7 +262,22 @@ function tr_admin_create_summary_price_hour_drupal(){
  */
 function tr_admin_create_summary_price_day_drupal(){
 
+  //NOTE: This function is called every hour at XXh 05 minutes
+  $now = time(); //current UTC time (ie: XXh 05min)
+  $last_hour = $now - 3600;
+  $last_hour_o_clock = strtotime(date('Y-m-d H:00:00', $last_hour)); //(ie: XX-1 h 00min)
+  $this_hour_o_clock = $last_hour_o_clock + 3600; //(ie: XXh 00min)
 
+  //Find prices created in the last hour
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', 'node')
+  ->propertyCondition('type', 'price')
+  ->propertyCondition('title', 'error', '!=')
+  ->propertyCondition('created', $last_hour_o_clock, '>=')
+  ->propertyCondition('created', $this_hour_o_clock, '<')
+  ->propertyOrderBy('nid', 'ASC')
+  ->addTag('DANGEROUS_ACCESS_CHECK_OPT_OUT');
+  $result = $query->execute();
 
 
 }
@@ -315,7 +330,7 @@ function tr_admin_cronapi($op, $job = NULL) {
     // 'arguments' => array('all'),
   );
 
-  $items['tr_admin_create_hourly_drupal_summary'] = array(
+  $items['tr_admin_create_summary_price_hour_drupal'] = array(
     'description' => 'Create Price Summary - Every Hour - Drupal data',
     'rule' => '5 * * * *', // Every hour at xx.05 minutes (five past minutes)
     'weight' => 2,
