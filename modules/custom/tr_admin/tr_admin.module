@@ -194,7 +194,7 @@ function tr_admin_create_summary_price_hour_IR($data){
 function tr_admin_create_summary_price_hour_drupal(){
 
   //NOTE: This function is called every hour at XXh 05 minutes
-  $now = time(); //current UTC time (ie: XXh 05min)
+  $now = time(); //current time - AUS timezone (ie: XXh 05min)
   $last_hour = $now - 3600;
   $last_hour_o_clock = strtotime(date('Y-m-d H:00:00', $last_hour)); //(ie: XX-1 h 00min)
   $this_hour_o_clock = $last_hour_o_clock + 3600; //(ie: XXh 00min)
@@ -259,25 +259,86 @@ function tr_admin_create_summary_price_hour_drupal(){
 
 /**
  * Create Drupal Summary daily prices
+ * @param  [string] $timezone [AUS or UTC]
  */
-function tr_admin_create_summary_price_day_drupal(){
+function tr_admin_create_summary_price_day_drupal($timezone){
 
-  //NOTE: This function is called every hour at XXh 05 minutes
-  $now = time(); //current UTC time (ie: XXh 05min)
-  $last_hour = $now - 3600;
-  $last_hour_o_clock = strtotime(date('Y-m-d H:00:00', $last_hour)); //(ie: XX-1 h 00min)
-  $this_hour_o_clock = $last_hour_o_clock + 3600; //(ie: XXh 00min)
+  //NOTE: This function is called every day at 00h15m and 11h15m
+  //
+  $now = time(); //current AUS time
+
+  switch ($timezone) {
+    case 'UTC':
+      $summary_type = 'day_drupal_utc';
+      $first_hour_o_clock_day = strtotime(date('Y-m-d 00:00:00', $now)) - (24*60*60);
+      $last_hour_o_clock_day = strtotime(date('Y-m-d 00:00:00', $now));
+      break;
+
+    default: //AUS
+
+      $summary_type = 'day_drupal_aus';
+      $first_hour_o_clock_day = strtotime(date('Y-m-d 00:00:00', $now)) - (24*60*60) - date('Z');
+      $last_hour_o_clock_day = strtotime(date('Y-m-d 00:00:00', $now)) - date('Z');
+      break;
+  }
+
 
   //Find prices created in the last hour
   $query = new EntityFieldQuery();
   $query->entityCondition('entity_type', 'node')
-  ->propertyCondition('type', 'price')
+  ->propertyCondition('type', 'price_summary')
   ->propertyCondition('title', 'error', '!=')
-  ->propertyCondition('created', $last_hour_o_clock, '>=')
-  ->propertyCondition('created', $this_hour_o_clock, '<')
+  ->fieldCondition('field_summary_type', 'value', 'hour_drupal', '=')
+  ->fieldCondition('field_start_date_and_time_utc_ti', 'value', $first_hour_o_clock_day, '>=')
+  ->fieldCondition('field_start_date_and_time_utc_ti', 'value', $last_hour_o_clock_day, '<')
   ->propertyOrderBy('nid', 'ASC')
   ->addTag('DANGEROUS_ACCESS_CHECK_OPT_OUT');
   $result = $query->execute();
+
+
+
+  global $user;
+  $node = new stdClass();
+  $node->type = 'price_summary';
+  $node->field_summary_type['und'][0]['value'] = $summary_type;
+  node_object_prepare($node); // Sets some defaults. Invokes hook_prepare() and hook_node_prepare().
+  $node->language = LANGUAGE_NONE; // Or e.g. 'en' if locale is enabled
+  $node->uid = $user->uid;
+
+
+
+  if(!empty($result)) {
+
+    $last_day_prices = array();
+    foreach ($result['node'] as $node_search) {
+      $item_node = node_load($node_search->nid);
+      $last_day_prices[] = $item_node->field_price['und'][0]['value'];
+    }
+
+    // update data
+    $yesterday = strtotime(date('Y-m-d 00:00:00', $now)) - (24*60*60);
+
+    $node->title = date('Y-m-d', $yesterday);
+    $node->field_start_date_and_time_utc_ti['und'][0]['value']= $yesterday;
+    $node->field_start_date_and_time['und'][0]['value'] = date('Y-m-d 00:00:00', $yesterday);
+    $node->field_end_date_and_time['und'][0]['value'] = date('Y-m-d 23:00:00', $yesterday);
+
+    $node->field_price['und'][0]['value'] = array_sum($last_day_prices)/count($last_day_prices);
+    $node->field_open_price['und'][0]['value'] = reset($last_day_prices);
+    $node->field_close_price['und'][0]['value'] = end($last_day_prices);
+    $node->field_high_price['und'][0]['value'] = max($last_day_prices);
+    $node->field_low_price['und'][0]['value'] = min($last_day_prices);
+    $node->field_primary_currency_code['und'][0]['value'] = $item_node->field_primary_currency_code['und'][0]['value'];
+    $node->field_secondary_currency_code['und'][0]['value'] = $item_node->field_secondary_currency_code['und'][0]['value'];
+  }
+      // No data avaliable
+  else {
+    $node->title = 'error';
+  }
+
+  $node = node_submit($node); // Prepare node for saving
+  node_save($node);
+  return $node;
 
 
 }
@@ -330,16 +391,22 @@ function tr_admin_cronapi($op, $job = NULL) {
     // 'arguments' => array('all'),
   );
 
-  $items['tr_admin_create_summary_price_hour_drupal'] = array(
+  $items['tr_admin_create_hourly_drupal_summary'] = array(
     'description' => 'Create Price Summary - Every Hour - Drupal data',
     'rule' => '5 * * * *', // Every hour at xx.05 minutes (five past minutes)
     'weight' => 2,
   );
 
-  $items['tr_admin_create_daily_drupal_summary'] = array(
-    'description' => 'Create Price Summary - Every Day - Drupal data',
-    'rule' => '15 1 * * *', // Every day at 01.15 AM
+  $items['tr_admin_create_daily_drupal_summary_aus'] = array(
+    'description' => 'Create Price Summary - Every Day (AUS time) - Drupal data',
+    'rule' => '15 0 * * *', // Every day at 00.15 AM (AUS time)
     'weight' => 3,
+  );
+
+  $items['tr_admin_create_daily_drupal_summary_utc'] = array(
+    'description' => 'Create Price Summary - Every Day (UTC time) - Drupal data',
+    'rule' => '15 11 * * *', // Every day at 11.15 AM - AUS time (UTC time = 2.15 am/0.15am depending on AUS Summer/Winter time)
+    'weight' => 4,
   );
 
   return $items;
@@ -390,6 +457,7 @@ function tr_admin_create_hourly_ir_summary(){
  * Callback for tr_admin_cronapi
  */
 function tr_admin_create_hourly_drupal_summary(){
+    $new_hourly_drupal_summary_price = tr_admin_create_summary_price_hour_drupal();
     $time = time();
     watchdog(
     'Cron: Hour Drupal Price Summary',
@@ -405,7 +473,25 @@ function tr_admin_create_hourly_drupal_summary(){
 /**
  * Callback for tr_admin_cronapi
  */
-function tr_admin_create_daily_drupal_summary(){
+function tr_admin_create_daily_drupal_summary_aus(){
+    $new_daily_drupal_summary_price_aus = tr_admin_create_summary_price_day_drupal('AUS');
+    $time = time();
+    watchdog(
+    'Cron: Daily Drupal Price Summary',
+    "Cron Time 1 !time</pre>",
+    array(
+      '!time' =>  print_r($time, TRUE),
+      ),
+    WATCHDOG_NOTICE
+    );
+
+}
+
+/**
+ * Callback for tr_admin_cronapi
+ */
+function tr_admin_create_daily_drupal_summary_utc(){
+    $new_daily_drupal_summary_price_utc = tr_admin_create_summary_price_day_drupal('UTC');
     $time = time();
     watchdog(
     'Cron: Daily Drupal Price Summary',
